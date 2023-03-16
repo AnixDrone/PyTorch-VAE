@@ -6,7 +6,6 @@ import torch
 import PIL
 from torchvision import utils as vutils
 from experiment import VAEXperiment
-from pytorch_lightning import Trainer
 
 
 def parse_arg():
