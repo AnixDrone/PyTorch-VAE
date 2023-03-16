@@ -23,6 +23,12 @@ class VAEXperiment(pl.LightningModule):
         self.params = params
         self.curr_device = None
         self.hold_graph = False
+        self.mask_transform = transforms.RandomErasing(
+            p=1.0,
+            scale=(0.02, 0.33), 
+            ratio=(0.3, 3.3), 
+            value=0
+            )
         try:
             self.hold_graph = self.params['retain_first_backpass']
         except:
@@ -34,27 +40,39 @@ class VAEXperiment(pl.LightningModule):
     def training_step(self, batch, batch_idx, optimizer_idx = 0):
         real_img, labels = batch
         self.curr_device = real_img.device
+        masked_img = self.mask_transform(real_img)
 
-        results = self.forward(real_img, labels = labels)
+        results = self.forward(masked_img, labels = labels)
+        results[1] = real_img
         train_loss = self.model.loss_function(*results,
                                               M_N = self.params['kld_weight'], #al_img.shape[0]/ self.num_train_imgs,
                                               optimizer_idx=optimizer_idx,
                                               batch_idx = batch_idx)
 
-        self.log_dict({key: val.item() for key, val in train_loss.items()}, sync_dist=True)
+        self.log_dict({key: val.item() for key, val in train_loss.items()}, sync_dist=True, on_epoch=True, on_step=False)
 
         return train_loss['loss']
+    
+    def predict_step(self, batch: Any, batch_idx: int) -> Any:
+        real_img, labels = batch
+        self.curr_device = real_img.device
+        # masked_img = self.mask_transform(real_img)
+        print('NESTO')
+        results = self.forward(real_img, labels = labels)
+        return results
 
     def validation_step(self, batch, batch_idx, optimizer_idx = 0):
         real_img, labels = batch
         self.curr_device = real_img.device
-
-        results = self.forward(real_img, labels = labels)
+        masked_img = self.mask_transform(real_img)
+        
+        results = self.forward(masked_img, labels = labels)
+        results[1] = real_img
         val_loss = self.model.loss_function(*results,
                                             M_N = 1.0, #real_img.shape[0]/ self.num_val_imgs,
                                             optimizer_idx = optimizer_idx,
                                             batch_idx = batch_idx)
-
+        
         self.log_dict({f"val_{key}": val.item() for key, val in val_loss.items()}, sync_dist=True)
 
         
@@ -75,6 +93,9 @@ class VAEXperiment(pl.LightningModule):
                                        f"recons_{self.logger.name}_Epoch_{self.current_epoch}.png"),
                           normalize=True,
                           nrow=12)
+        tensor_board_imgs = vutils.make_grid(recons.data, normalize=True, nrow=12)
+        
+        self.logger.experiment.add_image(f"Reconstructions",tensor_board_imgs,global_step=self.current_epoch)
 
         try:
             samples = self.model.sample(144,
