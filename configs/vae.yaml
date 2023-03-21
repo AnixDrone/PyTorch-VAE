@@ -21,7 +21,7 @@ exp_params:
 
 trainer_params:
   gpus: [0]
-  max_epochs: 100
+  max_epochs: 2
 
 logging_params:
   save_dir: "logs/"
