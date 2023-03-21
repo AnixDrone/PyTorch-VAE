@@ -19,6 +19,11 @@ parser.add_argument('--config',  '-c',
                     metavar='FILE',
                     help='path to the config file',
                     default='configs/vae.yaml')
+parser.add_argument('--checkpoint',
+                    '-ckpt',
+                    dest="ckpt",
+                    help='path to the checkpoint file',
+                    default=None)
 
 args = parser.parse_args()
 with open(args.filename, 'r') as file:
@@ -51,7 +56,7 @@ runner = Trainer(logger=tb_logger,
                                      monitor="val_loss",
                                      save_last=True),
                  ],
-                 strategy=DDPStrategy(find_unused_parameters=False),
+                 strategy=DDPStrategy(find_unused_parameters=True),
                  **config['trainer_params'])
 
 
@@ -60,4 +65,10 @@ Path(f"{tb_logger.log_dir}/Reconstructions").mkdir(exist_ok=True, parents=True)
 
 
 print(f"======= Training {config['model_params']['name']} =======")
-runner.fit(experiment, datamodule=data)
+if args.ckpt is not None:
+    experiment.load_from_checkpoint(args.ckpt,
+                                    vae_model=model,
+                                    params=config['exp_params'])
+    runner.test(model= experiment, datamodule=data)
+else:
+    runner.fit(experiment, datamodule=data)
