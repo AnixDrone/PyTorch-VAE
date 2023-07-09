@@ -51,11 +51,12 @@ def random_erase(img_tensor):
 
 def main():
     args = parse_arg()
-    with open(args.filename, 'r') as file:
+    with open(args.filename, 'r' )as file:
         try:
             config = yaml.safe_load(file)
         except yaml.YAMLError as exc:
             print(exc)
+
     model = vae_models[config['model_params']
                        ['name']](**config['model_params'])
     experiment = VAEXperiment(model,
